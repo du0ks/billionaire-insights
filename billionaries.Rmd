@@ -1,0 +1,360 @@
+---
+title: "Billionaire Insights"
+author: "Duhan Onat Karadayı"
+date: "2025-05-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+[**Aim of the project**]{.underline}
+<br>
+In a world where billionaires shape economics, politics and even culture. Understanding what drives their immense wealth is more than just a curiosity, it is a insight into global influence. This project explores the main factors of the wealth with using variables about demographics, economy, education and so on. By modeling their worth, it will be easier to uncover the patterns behind extraordinary wealth and understand what it truly takes to reach to the top.
+
+[**Source**]{.underline}
+<br>
+This dataset is taken from Kaggle. Link: https://www.kaggle.com/datasets/nelgiriyewithana/billionaires-statistics-dataset
+
+
+[**Data Description**]{.underline}
+<br>
+This dataset contains detailed information on 2640 billionaires worldwide. “finalWorth” variable represents the individual’s net worth in millions of USD. This variable is the main variable of interest. Variables like “age”, “selfMade”, “gender”, “country” are going to be used to explore patterns and correlations of this dataset. 
+
+There are 35 variables in the dataset. 16 of them are numeric, 17 of them are categorical and 2 of them are date variables.
+
+<style>
+.columns-3 {
+  column-count: 3;
+  column-gap: 40px;
+}
+</style>
+
+<div class="columns-3">
+<details>
+<summary><strong>Click to expand variable list</strong></summary>
+
+- <code>rank</code>: The ranking of the billionaire in terms of wealth.
+- <code>finalWorth</code>: The final net worth in U.S. dollars.
+- <code>category</code>: The industry of the billionaire.
+- <code>personName</code>: The full name of the billionaire.
+- <code>age</code>: The age of the billionaire.
+- <code>country</code>: Country of residence.
+- <code>city</code>: City of residence.
+- <code>source</code>: The source of wealth.
+- <code>industries</code>: The associated industries.
+- <code>countryOfCitizenship</code>: Country of citizenship.
+- <code>organization</code>: Organization name.
+- <code>selfMade</code>: Whether self-made.
+- <code>status</code>: Self-made or inherited.
+- <code>gender</code>: Gender of the billionaire.
+- <code>birthDate</code>: The birthdate.
+- <code>lastName</code>: The last name.
+- <code>firstName</code>: The first name.
+- <code>title</code>: Title or honorific.
+- <code>date</code>: Date of data collection.
+- <code>state</code>: State of residence.
+- <code>residenceStateRegion</code>: Region/state.
+- <code>birthYear</code>: Birth year.
+- <code>birthMonth</code>: Birth month.
+- <code>birthDay</code>: Birth day.
+- <code>cpi_country</code>: CPI for the country.
+- <code>cpi_change_country</code>: CPI change.
+- <code>gdp_country</code>: GDP value.
+- <code>gross_tertiary_education_enrollment</code>: Tertiary education rate.
+- <code>gross_primary_education_enrollment_country</code>: Primary education rate.
+- <code>life_expectancy_country</code>: Life expectancy.
+- <code>tax_revenue_country_country</code>: Tax revenue.
+- <code>total_tax_rate_country</code>: Total tax rate.
+- <code>population_country</code>: Population.
+- <code>latitude_country</code>: Latitude coordinate.
+- <code>longitude_country</code>: Longitude coordinate.
+
+</div>
+<br>
+[**Data Cleaning and Tidying**]{.underline}
+<br>
+Let's start with loading necessary libraries and our data.
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(naniar)
+library(tidyr)
+library(ggplot2)
+library(mice)
+library(corrplot)
+df<-read.csv("~/Code/412/Billionaires Statistics Dataset.csv")
+```
+Let's check the structure. 
+```{r}
+str(df)
+```
+`birthDate`, `birthYear`, `birthMonth`,`birthDay`, `lastName`, `firstName`, `date`, `residenceStateRegion`, `state`, `cpi_country`, `cpi_change_country`, `gross_tertiary_education_enrollment`, `gross_primary_education_enrollment_country`, `latitude_country`, `longitude_country` variables are unnecessary, can be dropped.
+
+```{r}
+df <- df[, !names(df) %in% c(
+  "birthDate", "birthYear", "birthMonth", "birthDay", "lastName", "firstName", "date",
+  "residenceStateRegion", "state", "cpi_country", "cpi_change_country",
+  "gross_tertiary_education_enrollment", "gross_primary_education_enrollment_country",
+  "latitude_country", "longitude_country"
+)]
+```
+
+There are lots of cities, sources, organizations and they are encoded as char. Top 25 **cities** and **countries** will be selected and others are named as "Others". Moreover, same thing cannot be done for organization and source. For example, there is only one "Tesla" but it is Elon Musk's company, he is the second richest individual.
+
+
+```{r}
+top_cities <- names(sort(table(df$city), decreasing = TRUE))[1:25]
+df$city <- ifelse(df$city %in% top_cities, df$city, "Other")
+df$city <- as.factor(df$city)
+
+top_countries <- names(sort(table(df$country), decreasing = TRUE))[1:25]
+df$country <- ifelse(df$country %in% top_countries, df$country, "Other")
+df$country <- as.factor(df$country)
+
+top_citizenships <- names(sort(table(df$countryOfCitizenship), decreasing = TRUE))[1:25]
+df$countryOfCitizenship <- ifelse(df$countryOfCitizenship %in% top_citizenships, df$countryOfCitizenship, "Other")
+df$countryOfCitizenship <- as.factor(df$countryOfCitizenship)
+```
+
+Let's convert others to factors.
+```{r}
+df[c("gender", "selfMade", "status",
+     "industries", "category")] <-
+  lapply(df[c("gender", "selfMade", "status",
+     "industries", "category")], as.factor)
+```
+
+`gdp_country` column has dollar signs, commas. It should be cleaned and converted to numeric.
+```{r}
+df$gdp_country <- gsub("[$,]", "", df$gdp_country) 
+df$gdp_country <- as.numeric(df$gdp_country)
+options(scipen = 999)
+head(df$gdp_country)
+```
+
+Now, everything is looking good.
+```{r}
+str(df)
+```
+
+
+[**Exploratory Data Analysis**]{.underline}
+<br>
+
+**1)Which Country has the Most Billionaires?**
+
+This bar plot shows the top 20 countries with the highest number of billionaires. The USA and China are leading by far. The "Other" category represents 52 different countries, each contributing only a few billionaires. This highlights the striking imbalance in global wealth distribution.
+
+```{r}
+ggplot(df %>% count(country, sort = TRUE) %>% slice_head(n = 20),
+       aes(x = reorder(country, -n), y = n, fill = country)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  geom_text(aes(label = n), vjust = -0.5, size = 3.5) +
+  labs(title = "Top 20 Countries with the Most Billionaires",
+       x = NULL, y = "Number of Billionaires") +
+  theme_minimal(base_size = 13) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        plot.title = element_text(hjust = 0.5)) +
+  scale_fill_manual(values = rainbow(20))
+```
+
+**2)Which industries are creating the highest number of billionaires?**
+
+It is seen that Finance & Investments, Manufacturing, and Technology are the top industries producing the most billionaires.   
+```{r}
+df %>%
+  count(industries, sort = TRUE) %>%
+  slice_max(n, n = 15) %>%
+  ggplot(aes(x = reorder(industries, n), y = n)) +
+  geom_segment(aes(xend = industries, y = 0, yend = n), color = "darkred") +
+  geom_point(size = 4, color = "red") +
+  coord_flip() +
+  labs(title = "Top 15 Industries Producing the Most Billionaires",
+       x = "Industry", y = "Number of Billionaires") +
+  theme_minimal(base_size = 13)
+```
+
+<br>
+
+**3)Do self-made billionaires have a significantly different net worth than those who inherited their wealth?**
+
+<center>**H₀**: The mean net worth of self-made and non-self-made billionaires is equal</center>
+
+<center>**H₁**: The mean net worth of the two groups is different</center>
+
+```{r fig.height=5, fig.width=12, message=FALSE, warning=FALSE}
+df$logWorth <- log(df$finalWorth)
+
+library(grid)
+
+p1 <- ggplot(df, aes(x = selfMade, y = finalWorth, fill = selfMade)) +
+  geom_violin(trim = FALSE, alpha = 0.6, color = "gray30") +
+  scale_y_log10(labels = scales::comma) +
+  labs(title = "Net Worth by Self-Made Status (Log Scale)",
+       x = "Self-Made", y = "Final Worth (log scale)") +
+  theme_minimal(base_size = 13) +
+  theme(legend.position = "none")
+
+p2 <- ggplot(df, aes(x = log(finalWorth))) +
+  geom_histogram(binwidth = 0.25, fill = "lightgreen", color = "black", alpha = 0.7) +
+  geom_density(aes(y = ..count.. * 0.25), color = "darkgreen", size = 1) +
+  labs(title = "Log-Transformed Distribution of Net Worth",
+       x = "log(Final Worth)", y = "Frequency") +
+  theme_minimal(base_size = 13)
+
+grid.newpage()
+pushViewport(viewport(layout = grid.layout(1, 2)))
+print(p1, vp = viewport(layout.pos.row = 1, layout.pos.col = 1))
+print(p2, vp = viewport(layout.pos.row = 1, layout.pos.col = 2))
+
+```
+As shown in the violin plot, net worth distribution is right-skewed. To reduce the skewness, log-transformation is applied. While this helped, the distribution is still skewed, and normality assumption is failed. Therefore, proceeding with the non-parametric Wilcoxon rank-sum test is a good idea.
+
+
+```{r message=FALSE, warning=FALSE}
+wilcox_result <- wilcox.test(finalWorth ~ selfMade, data = df)
+```
+
+Test results indicate statistically significant difference between two groups. Therefore, we reject the null hypothesis and conclude that self-made and non-self-made billionaires differ significantly in their net worth distributions.
+**Self-made and inherited billionaires show different patterns in their net worth, meaning the way they became rich matters.**
+
+```{r,echo=FALSE}
+cat("W =", wilcox_result$statistic, "\n")
+cat("p-value =", signif(wilcox_result$p.value, 4), "\n")
+```
+Although self-made billionaires are more common, non-self-made billionaires have slightly higher average and median net worth. This means that billionaires who inherited their wealth usually have more stable and higher typical wealth, while self-made billionaires have more variety — some have less, but some are extremely rich.
+
+```{r}
+df %>%
+  group_by(selfMade) %>%
+  summarise(
+    medianWorth = median(finalWorth),
+    meanWorth = mean(finalWorth),
+    n = n()
+  )
+df <- df %>% select(-logWorth)
+```
+<br>
+
+[**Missingness**]{.underline}
+<br>
+
+As seen, missingness is scattered and not limited to a specific block of observations, suggesting that the data is likely missing at random (MAR). The variables tax_revenue_country_country, life_expectancy_country, and total_tax_rate_country have the highest missingness (around 7%), while others like age and gdp_country are missing less than that. 
+```{r}
+df %>%
+  select(where(~ any(is.na(.)))) %>%
+  gg_miss_var(show_pct = TRUE) +
+  labs(title = "Missing Values") +
+  theme_minimal(base_size = 13)
+```
+
+Mean imputations can be biased when data is such skewed. With these missing rates, using median for imputating might be a good idea. 
+
+```{r}
+md.pattern(df_short <- df %>% 
+  rename_with(~ abbreviate(., minlength = 5)) %>%
+  select(where(~ any(is.na(.)))))
+```
+
+Multiple imputation with mice was attempted but failed due to high multicollinearity. The correlation matrix is showing that the several numeric variables were nearly identical, making the model unstable.
+```{r}
+num_df <- df %>% select(where(is.numeric))
+cor_matrix <- cor(num_df, use = "pairwise.complete.obs")
+corrplot(cor_matrix, method = "color", type = "upper",
+         tl.col = "black", tl.cex = 0.8, number.cex = 0.7,
+         title = "Correlation Matrix of Numeric Variables", mar = c(0,0,2,0))
+```
+
+As a result, median imputation was used as a simpler and more reliable alternative.
+```{r}
+df_before<-df
+df <- df %>%
+  mutate(
+    age = ifelse(is.na(age), median(age, na.rm = TRUE), age),
+    gdp_country = ifelse(is.na(gdp_country), median(gdp_country, na.rm = TRUE), gdp_country),
+    population_country = ifelse(is.na(population_country), median(population_country, na.rm = TRUE), population_country),
+    tax_revenue_country_country = ifelse(is.na(tax_revenue_country_country), median(tax_revenue_country_country, na.rm = TRUE), tax_revenue_country_country),
+    life_expectancy_country = ifelse(is.na(life_expectancy_country), median(life_expectancy_country, na.rm = TRUE), life_expectancy_country),
+    total_tax_rate_country = ifelse(is.na(total_tax_rate_country), median(total_tax_rate_country, na.rm = TRUE), total_tax_rate_country)
+  )
+```
+
+Let's plot facets to compare the distributions before and after.
+```{r fig.height=5, fig.width=12, message=FALSE, warning=FALSE}
+
+comparison <- bind_rows(
+  df_before %>%
+    select(age, gdp_country, population_country, tax_revenue_country_country,
+           life_expectancy_country, total_tax_rate_country) %>%
+    pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value") %>%
+    mutate(Source = "Before"),
+
+  df %>%
+    select(age, gdp_country, population_country, tax_revenue_country_country,
+           life_expectancy_country, total_tax_rate_country) %>%
+    pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value") %>%
+    mutate(Source = "After")
+)
+
+ggplot(comparison, aes(x = Value, fill = Source)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(~ Variable, scales = "free") +
+  labs(title = "Distributions Before vs After Imputation",
+       x = "Value", y = "Density") +
+  theme_minimal(base_size = 13)
+
+```
+<br>
+
+[**Feature Engineering**]{.underline}
+<br>
+
+Created new features such as `wealth_per_age`, to capture the relationship between age and wealth. Additionally, applied log-transformation to `finalWorth` variable for modelling use cases. Dimension reduction was not necessary due to the manageable number of variables.
+
+
+| New Variable         | Description                                       |
+|----------------------|---------------------------------------------------|
+| `wealth_per_age`     | Net worth divided by age                          |
+| `log_finalWorth`     | Log-transformed net worth for skewed modeling     |
+
+
+```{r}
+df <- df %>%
+  mutate(
+    wealth_per_age = finalWorth / age,
+    log_finalWorth = log(finalWorth)
+  )
+```
+<br>
+
+[**Confirmatory Data Analysis**]{.underline}
+<br>
+
+**1)Is net worth significantly different across industries?**
+<center>**H₀**: All industry groups have the same distribution of net worth</center>
+<center> **H₁**: At least one industry differs significantly</center>
+
+```{r fig.height=5, fig.width=10}
+df_ind <- df[df$industries != "" & !is.na(df$finalWorth) & !is.na(df$industries), ]
+top_inds <- sort(table(df_ind$industries), decreasing = TRUE)
+top_inds <- names(top_inds)[1:10]
+df_ind <- df_ind[df_ind$industries %in% top_inds, ]
+
+par(mar = c(5.1, 12, 4.1, 2.1))
+
+stripchart(finalWorth ~ industries, data = df_ind,
+           method = "jitter",
+           vertical = FALSE,
+           las = 1,
+           pch = 16, col = "blue",
+           main = "Net Worth by Industry (Top 10)",
+           xlab = "Final Net Worth")
+```
+
+The `finalWorth` variable was highly skewed and containing extreme outliers. These violations break ANOVA's assumptions for normality and equal variances. Thus, used Kruskal-Wallis test. The test showed a statistically significant difference in net worth across industries (χ² = 30.655, df = 9, p = 0.00034), so we reject the null hypothesis. This means that at least one industry has a different net worth distribution compared to the others.
+
+```{r}
+kruskal.test(finalWorth ~ industries, data = df_ind)
+```
+<br>
